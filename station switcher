@@ -1,7 +1,6 @@
 #erstelle/home/pi/fm_station_switcherdotpy
 
 
-
 #!/usr/bin/env python3
 # fm_station_switcher.py
 
@@ -33,11 +32,11 @@ stations = [
 ]
 
 FREQ = "87.5"   # FM-Frequenz
-current = 0      # aktueller Sender
+current = 0
 pfm_proc = None
 lock = threading.Lock()
 
-# 🎚 Rotary Encoder initialisieren (Pins anpassen falls nötig)
+# 🎚 Rotary Encoder initialisieren
 encoder = RotaryEncoder(a=17, b=27)
 
 # 🔢 TM1637 Display initialisieren (Pins DIO=23, CLK=24)
@@ -45,22 +44,18 @@ display = tm1637.TM1637(clk=24, dio=23)
 display.clear()
 
 def random_segments():
-    """Erstellt zufällige Segmente für erste und vierte Ziffer"""
     segments = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]
     return sum(random.sample(segments, k=random.randint(1, 5)))
 
 def update_display(index):
     """Zeigt Sendernummer auf dem Display"""
-    number = f"{index+1:02}"  # Sendernummer als 2-stellige Zahl
+    number = f"{index+1:02}"
     data = [
         random_segments(),
         int(number[0]),
         int(number[1]),
         random_segments()
     ]
-    # Wandelt Zahlen in Zeichen um, da show() Strings erwartet
-    text = f"{number[0]}{number[1]}"
-    # Erste und vierte Ziffer als Segmente direkt
     display.show([data[0], number[0], number[1], data[3]])
 
 def start_station(index):
@@ -74,9 +69,15 @@ def start_station(index):
             pfm_proc.terminate()
             pfm_proc = None
 
+        # 🎧 ffmpeg mit Pufferoptionen für stabilere Wiedergabe
         ffmpeg_cmd = [
             "ffmpeg", "-re", "-i", url,
-            "-ac", "2", "-ar", "44100",
+            "-use_wallclock_as_timestamps", "1",
+            "-fflags", "+genpts",
+            "-bufsize", "3M",
+            "-flush_packets", "0",
+            "-ac", "2",
+            "-ar", "44100",
             "-f", "wav", "-"
         ]
 
@@ -106,8 +107,12 @@ def rotate_counter_clockwise():
 encoder.when_rotated_clockwise = rotate_clockwise
 encoder.when_rotated_counter_clockwise = rotate_counter_clockwise
 
-# 🚀 Ersten Sender starten
+# 🚀 Startet den ersten Sender
 start_station(current)
 
-pause()  # Script läuft weiter
+pause()
+
+
+
+
 
