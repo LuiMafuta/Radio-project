@@ -1,0 +1,20 @@
+[Unit]
+Description=FM Station Switcher
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/bin/bash -c "sleep 15 && /usr/bin/python3 /home/pi/fm_station_switch>
+Restart=always
+RestartSec=10
+WorkingDirectory=/home/pi
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+
+
