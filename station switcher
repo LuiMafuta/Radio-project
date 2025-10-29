@@ -1,0 +1,145 @@
+#erstelle/home/pi/fm_station_switcherdotpy
+
+
+
+from gpiozero import RotaryEncoder
+from signal import pause
+import subprocess
+import threading
+import RPi.GPIO as GPIO
+import random
+import time
+import tm1637
+
+# =============== Konfiguration ===============
+FREQ = "87.5"
+CLK_PIN = 24
+DIO_PIN = 23
+
+# Senderliste (15 Sender, BBC bis Bermuda Funk)
+stations = [
+    ("BBC World Service", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
+    ("WBGO Jazz", "https://wbgo.streamguys1.com/wbgo128"),
+    ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
+    ("Radio Swiss Pop", "https://stream.srg-ssr.ch/m/rsp/mp3_128"),
+    ("Deutschlandfunk", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3"),
+    ("Radio Paradise", "https://stream.radioparadise.com/aac-320"),
+    ("FluxFM", "https://fluxfm.streamabc.net/flx-fluxfmberlin-mp3-128-7328198"),
+    ("ByteFM", "https://bytefm.cast.addradio.de/bytefm/main/mid/stream.mp3"),
+    ("NDR Info", "https://icecast.ndr.de/ndr/ndrinfo/live/mp3/128/stream.mp3"),
+    ("DLF Kultur", "https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3"),
+    ("WDR 5", "https://wdr-edge-6b-fra-dtag-cdn.cast.addradio.de/wdr/5/live/mp3/128/stream.mp3"),
+    ("HR Info", "https://dispatcher.rndfnk.com/hr/hrinfo/live/mp3/mid"),
+    ("SWR3", "https://swr-swr3-live.cast.addradio.de/swr/swr3/live/mp3/128/stream.mp3"),
+    ("NTS Radio", "https://stream-relay-geo.ntslive.net/stream"),
+    ("Bermuda Funk", "https://bermudafunk-radio.de/stream")
+]
+
+# ============================================
+
+current = 0
+pfm_proc = None
+ffmpeg_proc = None
+lock = threading.Lock()
+
+# Display initialisieren
+tm = tm1637.TM1637(clk=CLK_PIN, dio=DIO_PIN)
+tm.brightness(7)
+
+def show_station_on_display(index):
+    """Zeigt die Sendernummer auf Ziffer 2+3, und zufällige Segmente auf Ziffer 1+4"""
+    station_num = str(index + 1).zfill(2)
+    segments = [
+        0b00000001, 0b00000010, 0b00000100, 0b00001000,
+        0b00010000, 0b00100000, 0b01000000
+    ]
+    left = random.choice(segments)
+    right = random.choice(segments)
+    digits = [left, int(station_num[0]), int(station_num[1]), right]
+
+    try:
+        tm.write(digits)
+    except Exception:
+        pass  # Ignoriere Anzeige-Fehler, Script soll weiterlaufen
+
+
+def start_station(index):
+    """Startet den Stream"""
+    global pfm_proc, ffmpeg_proc
+    name, url = stations[index]
+    print(f"📻 Sende jetzt: {name}")
+
+    show_station_on_display(index)
+
+    with lock:
+        if ffmpeg_proc:
+            ffmpeg_proc.terminate()
+        if pfm_proc:
+            pfm_proc.terminate()
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-re", "-i", url,
+            "-ac", "2", "-ar", "44100",
+            "-f", "wav", "-"
+        ]
+
+        pfm_cmd = ["sudo", "/home/pi/PiFmRds/src/pi_fm_rds", "-freq", FREQ, "-audio", "-"]
+
+        pfm_proc = subprocess.Popen(pfm_cmd, stdin=subprocess.PIPE)
+        ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdout=pfm_proc.stdin, stderr=subprocess.DEVNULL)
+
+
+# Rotary Encoder
+encoder = RotaryEncoder(a=17, b=27)
+
+def rotate_clockwise():
+    global current
+    with lock:
+        current = (current + 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,)).start()
+
+def rotate_counter_clockwise():
+    global current
+    with lock:
+        current = (current - 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,)).start()
+
+encoder.when_rotated_clockwise = rotate_clockwise
+encoder.when_rotated_counter_clockwise = rotate_counter_clockwise
+
+# Start
+start_station(current)
+pause()
+
+
+python3
+import tm1637
+display = tm1637.TM1637(clk=24, dio=23)
+display.show('0123')
+display.show('8888')
+display.clear()
+
+
+
+AUTOSTTART:
+    
+    [Unit]
+Description=FM Station Switcher
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/bin/bash -c "sleep 20 && /usr/bin/python3 /home/pi/fm_station_switch>
+Restart=always
+RestartSec=10
+WorkingDirectory=/home/pi
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+
+
