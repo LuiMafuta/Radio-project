@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+# fm_station_switcher.py
+
+from gpiozero import RotaryEncoder
+from signal import pause
+import subprocess
+import threading
+import random
+import time
+import tm1637
+import signal
+
+# 🔊 Senderliste
+stations = [
+    ("BBC Radio", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
+    ("WBGO", "https://ais-sa8.cdnstream1.com/3629_128.mp3"),
+    ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
+    ("DLF", "https://st01.sslstream.de/dlf/01/high/aac/stream.aac?aggregator=web"),
+    ("X99 Detroit", "https://sonic.radiostream.ca:9458/streams"),
+    ("The Voice of Asheville", "https://stream.wpvmfm.org:8100/wpvm-128k.mp3"),
+    ("Tagesschau", "https://icecast.tagesschau.de/ndr/tagesschau24/live/mp3/128/stream.mp3?aggregator=web"),
+    ("181.FM", "https://listen.181fm.com/181-oldschool_128k.mp3"),
+    ("SWR 1 BW", "https://dispatcher.rndfnk.com/swr/swr1/bw/mp3/128/stream.mp3"),
+    ("DUBLAB", "https://dublab.out.airtime.pro/dublab_a"),
+    ("World Wide FM", "https://worldwidefm.out.airtime.pro/worldwidefm_a"),
+    ("Open Lab", "https://ice09.fluidstream.net/openlab.aac"),
+    ("Resonance FM", "https://stream.resonance.fm/resonance?rp_source=1&=&&___cb=129943019039624"),
+    ("NTS", "https://stream-relay-geo.ntslive.net/stream"),
+    ("Bermuda Funk", "http://streaming.fueralle.org:8000/bermudafunk_high")
+]
+
+FREQ = "87.5"   # FM-Frequenz
+current = 0
+pfm_proc = None
+lock = threading.Lock()
+
+# 🎚 Rotary Encoder initialisieren
+encoder = RotaryEncoder(a=17, b=27)
+
+# 🔢 TM1637 Display initialisieren (Pins DIO=23, CLK=24)
+display = tm1637.TM1637(clk=24, dio=23)
+display.clear()
+
+# ------------------------------------------------
+# NEU: Display beim Shutdown aus (SIGTERM abfangen)
+def cleanup_display(*args):
+    display.clear()
+    display.show([0,0,0,0])
+    print("Display ausgeschaltet")
+signal.signal(signal.SIGTERM, cleanup_display)
+# ------------------------------------------------
+
+def random_segments():
+    segments = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]
+    return sum(random.sample(segments, k=random.randint(1, 5)))
+
+def update_display(index):
+    """Zeigt Sendernummer auf dem Display"""
+    number = f"{index+1:02}"
+    data = [
+        random_segments(),
+        int(number[0]),
+        int(number[1]),
+        random_segments()
+    ]
+    display.show([data[0], number[0], number[1], data[3]])
+
+def start_station(index):
+    """Startet den Sender über PiFmRds mit ffmpeg-Pipe"""
+    global pfm_proc
+    name, url = stations[index]
+    print(f"📻 Sende jetzt: {name}")
+
+    with lock:
+        if pfm_proc:
+            pfm_proc.terminate()
+            pfm_proc = None
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-re", "-i", url,
+            "-use_wallclock_as_timestamps", "1",
+            "-fflags", "+genpts",
+            "-bufsize", "3M",
+            "-flush_packets", "0",
+            "-ac", "2",
+            "-ar", "44100",
+            "-f", "wav", "-"
+        ]
+
+        pfm_proc = subprocess.Popen(
+            ["sudo", "/home/pi/PiFmRds/src/pi_fm_rds", "-freq", FREQ, "-audio", "-"],
+            stdin=subprocess.PIPE
+        )
+
+        threading.Thread(
+            target=lambda: subprocess.run(ffmpeg_cmd, stdout=pfm_proc.stdin)
+        ).start()
+
+    update_display(index)
+
+def rotate_clockwise():
+    global current
+    with lock:
+        current = (current + 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,)).start()
+
+def rotate_counter_clockwise():
+    global current
+    with lock:
+        current = (current - 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,)).start()
+
+encoder.when_rotated_clockwise = rotate_clockwise
+encoder.when_rotated_counter_clockwise = rotate_counter_clockwise
+
+# 🚀 Startet den ersten Sender
+start_station(current)
+
+pause()
