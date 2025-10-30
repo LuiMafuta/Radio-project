@@ -1,0 +1,62 @@
+# /home/pi/tm1637.py
+import time
+import RPi.GPIO as GPIO
+
+class TM1637:
+    def __init__(self, clk, dio):
+        self.clk = clk
+        self.dio = dio
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.clk, GPIO.OUT)
+        GPIO.setup(self.dio, GPIO.OUT)
+        self.clear()
+
+    def _start(self):
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 0)
+
+    def _stop(self):
+        GPIO.output(self.clk, 0)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+
+    def _write_byte(self, data):
+        for i in range(8):
+            GPIO.output(self.dio, (data >> i) & 1)
+            GPIO.output(self.clk, 1)
+            GPIO.output(self.clk, 0)
+
+        GPIO.setup(self.dio, GPIO.IN)
+        GPIO.output(self.clk, 1)
+        time.sleep(0.00002)
+        GPIO.output(self.clk, 0)
+        GPIO.setup(self.dio, GPIO.OUT)
+
+    def clear(self):
+        self.show('    ')
+
+    def show(self, text):
+        segment_map = {
+            ' ': 0x00, '-': 0x40,
+            '0': 0x3f, '1': 0x06, '2': 0x5b, '3': 0x4f,
+            '4': 0x66, '5': 0x6d, '6': 0x7d, '7': 0x07,
+            '8': 0x7f, '9': 0x6f
+        }
+
+        data = [segment_map.get(c, 0x00) for c in text[:4]]
+        self._start()
+        self._write_byte(0x40)
+        self._stop()
+
+        self._start()
+        self._write_byte(0xc0)
+        for b in data:
+            self._write_byte(b)
+        self._stop()
+
+# Ende Datei
+
