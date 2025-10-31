@@ -16,3 +16,14 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
+
+
+
+
+###########################################
+# dann #
+#sudo systemctl daemon-reload    #
+#sudo systemctl enable fm_station_switcher.service    #
+#sudo systemctl restart fm_station_switcher.service  #
+#ausführen#
+####################################
