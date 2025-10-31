@@ -1,0 +1,18 @@
+#sudo nano /etc/systemd/system/fm_station_switcher.service#
+
+
+[Unit]
+Description=FM Station Switcher
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/bin/bash -c 'sleep 15 && /usr/bin/python3 /home/pi/fm_station_switcher.py'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
