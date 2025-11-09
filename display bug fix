@@ -1,1 +1,91 @@
-# first run sudo nano /home/pi/display_test_simple.py
+# first run sudo nano /home/pi/display_test_simple.py (inhalt für das programm im hauptordner)
+# python3 /home/pi/display_test_simple.py
+
+# dann kommt folgendes:    Test: Display wird initialisiert... /home/pi/display_test_simple.py:6: RuntimeWarning: No channels have been set up yet - 
+#nothing to clean up! Try cleaning up at the end of your program instead! GPIO.cleanup() 
+#❌ Fehler beim Initialisieren: 'TM1637' object has no attribute 'brightness'
+
+
+#dann: sudo nano /home/pi/tm1637.py
+#und kopiere das rein:
+
+import time
+import RPi.GPIO as GPIO
+
+class TM1637:
+    def __init__(self, clk, dio, brightness=7):
+        self.clk = clk
+        self.dio = dio
+        self.brightness_level = brightness & 0x07
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.clk, GPIO.OUT)
+        GPIO.setup(self.dio, GPIO.OUT)
+        self.clear()
+
+    def _start(self):
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 0)
+
+    def _stop(self):
+        GPIO.output(self.clk, 0)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+
+    def _write_byte(self, data):
+        for i in range(8):
+            GPIO.output(self.dio, (data >> i) & 1)
+            GPIO.output(self.clk, 1)
+            GPIO.output(self.clk, 0)
+        GPIO.setup(self.dio, GPIO.IN)
+        GPIO.output(self.clk, 1)
+        time.sleep(0.00002)
+        GPIO.setup(self.dio, GPIO.OUT)
+
+    def brightness(self, val=None):
+        """Set brightness (0–7)."""
+        if val is not None:
+            self.brightness_level = val & 0x07
+
+    def clear(self):
+        self.show('    ')
+
+    def show(self, text):
+        segment_map = {
+            ' ': 0x00, '-': 0x40,
+            '0': 0x3f, '1': 0x06, '2': 0x5b, '3': 0x4f,
+            '4': 0x66, '5': 0x6d, '6': 0x7d, '7': 0x07,
+            '8': 0x7f, '9': 0x6f
+        }
+        if isinstance(text, list):
+            data = text
+        else:
+            data = [segment_map.get(c, 0x00) for c in str(text)[:4]]
+
+        self._start()
+        self._write_byte(0x40)
+        self._stop()
+
+        self._start()
+        self._write_byte(0xc0)
+        for b in data:
+            self._write_byte(b)
+        self._stop()
+
+        self._start()
+        self._write_byte(0x88 | self.brightness_level)
+        self._stop()
+
+
+
+#dann nochmal : python3 /home/pi/display_test_simple.py
+# dann knopp drehen - manchmal fuznktioniert das display dann gleich wieder, anonsten den original inhalt wieder in sudo nano /home/pi/tm1637.py kopieren und dann:
+
+sudo pkill -f ffmpeg
+sudo pkill -f fm_station_switcher.py
+python3 /home/pi/fm_station_switcher.py
+
+dann sollte es wieder gehen
