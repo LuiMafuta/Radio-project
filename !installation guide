@@ -25,6 +25,118 @@ Installiere Raspbarry Pi OS Lite 32 Bit für Pi Zero W mir Raspberry Pi Imager
 
 
 
+über temrinal in Pi einloggen. IP adresse steht im Router menu
+
+
+dann Pakete und updates und shit installieren:
+
+
+------------------------------------------------
+sudo apt update
+sudo apt upgrade -y
+
+# Basiswerkzeuge + Python-Module + ffmpeg
+sudo apt install -y git build-essential python3-pip python3-setuptools ffmpeg libatlas-base-dev
+
+# RPi.GPIO + gpiozero (falls nicht schon)
+sudo apt install -y python3-rpi.gpio python3-gpiozero
+
+
+# optional: für Audio/ALSA falls benötigt
+sudo apt install -y alsa-utils
+------------------------------------------------
+
+dann git installieren:
+
+------------------------------------------------
+sudo apt update
+sudo apt install -y git
+------------------------------------------------
+
+
+
+dann PiFmRds installieren:
+
+------------------------------------------------
+cd /home/pi
+# Beispiel repo — falls du ein repo bevorzugst, ersetze die URL
+git clone https://github.com/ChristopheJacquet/PiFmRds.git PiFmRds || true
+cd PiFmRds/src || exit
+make || true
+
+# stelle sicher, dass die Binärdatei existiert und ausführbar ist:
+ls -l /home/pi/PiFmRds/src/pi_fm_rds
+chmod +x /home/pi/PiFmRds/src/pi_fm_rds
+------------------------------------------------
+
+dann kommt "fatal error"
+dann:
+
+------------------------------------------------
+sudo apt update
+sudo apt install -y libsndfile1-dev
+------------------------------------------------
+dann:
+------------------------------------------------
+cd /home/pi/PiFmRds/src
+make clean
+make
+chmod +x /home/pi/PiFmRds/src/pi_fm_rds
+
+------------------------------------------------
+
+
+dann ffmpg installieren:
+
+------------------------------------------------
+sudo apt update
+sudo apt install ffmpeg -y
+------------------------------------------------
+
+
+
+dann /home/pi/tm1637.py erstellen
+
+------------------------------------------------
+sudo nano /home/pi/tm1637.py
+------------------------------------------------
+
+und inhalt des github files !tm1637 einfügen
+
+dann /home/pi/fm_station_switcher.py erstellen
+
+------------------------------------------------
+sudo nano /home/pi/fm_station_switcher.py
+------------------------------------------------
+
+und Inhalt der github datei !station switcher einfügen.
+
+
+
+dann Autostart anlegen:
+
+------------------------------------------------
+sudo nano /etc/systemd/system/fm_station_switcher.service
+------------------------------------------------
+und Git file !New Autostart einfügen
+
+und ausführbar machen:
+
+------------------------------------------------
+sudo systemctl daemon-reload
+sudo systemctl enable fm_station_switcher.service
+sudo systemctl start fm_station_switcher.service
+------------------------------------------------
+
+
+
+
+
+
+
+
+
+
 
 
 
