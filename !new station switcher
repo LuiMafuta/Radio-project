@@ -15,10 +15,10 @@ import signal
 
 # 🔊 Senderliste
 stations = [
-    ("BBC Radio", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
-    ("WBGO", "https://ais-sa8.cdnstream1.com/3629_128.mp3"),
     ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
-    ("DLF", "https://st01.sslstream.de/dlf/01/high/aac/stream.aac?aggregator=web"),
+    ("WBGO", "https://ais-sa8.cdnstream1.com/3629_128.mp3"),
+    ("BBC Radio", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
+    ("TRUE OLDIES", "http://leon.cdnstream.com:5101/toc-128kmp3"),
     ("X99 Detroit", "https://sonic.radiostream.ca:9458/streams"),
     ("The Voice of Asheville", "https://stream.wpvmfm.org:8100/wpvm-128k.mp3"),
     ("Tagesschau", "https://icecast.tagesschau.de/ndr/tagesschau24/live/mp3/128/stream.mp3?aggregator=web"),
