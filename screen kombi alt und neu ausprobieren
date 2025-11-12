@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+# /home/pi/tm1637.py
+import time
+import RPi.GPIO as GPIO
+
+class TM1637:
+    def __init__(self, clk, dio, brightness=7):
+        self.clk = clk
+        self.dio = dio
+        self.brightness_level = brightness & 0x07  # 0–7 (0 = dunkel, 7 = hell)
+
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.clk, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(self.dio, GPIO.OUT, initial=GPIO.LOW)
+
+        # kleine Pause, damit sich der TM1637 stabilisiert
+        time.sleep(0.1)
+        self.clear()
+        self._display_on()
+
+    # ----------------------------------------------------------
+    # Low-Level Bus Operationen
+    # ----------------------------------------------------------
+    def _start(self):
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 0)
+
+    def _stop(self):
+        GPIO.output(self.clk, 0)
+        GPIO.output(self.dio, 0)
+        GPIO.output(self.clk, 1)
+        GPIO.output(self.dio, 1)
+
+    def _write_byte(self, data):
+        for i in range(8):
+            GPIO.output(self.dio, (data >> i) & 1)
+            GPIO.output(self.clk, 1)
+            GPIO.output(self.clk, 0)
+
+        # ACK-Phase (leicht verlängert für Stabilität)
+        GPIO.setup(self.dio, GPIO.IN)
+        GPIO.output(self.clk, 1)
+        time.sleep(0.00005)
+        GPIO.output(self.clk, 0)
+        GPIO.setup(self.dio, GPIO.OUT)
+
+    # ----------------------------------------------------------
+    # Display-Funktionen
+    # ----------------------------------------------------------
+    def _display_on(self):
+        """Aktiviert das Display mit der aktuellen Helligkeit."""
+        self._start()
+        self._write_byte(0x88 | self.brightness_level)
+        self._stop()
+
+    def brightness(self, val=None):
+        """Setze oder lese die Helligkeit (0–7)."""
+        if val is not None:
+            self.brightness_level = val & 0x07
+            self._display_on()
+        return self.brightness_level
+
+    def clear(self):
+        self.show('    ')
+
+    def show(self, text):
+        """Zeigt Text (max. 4 Zeichen) oder Segment-Liste."""
+        segment_map = {
+            ' ': 0x00, '-': 0x40,
+            '0': 0x3f, '1': 0x06, '2': 0x5b, '3': 0x4f,
+            '4': 0x66, '5': 0x6d, '6': 0x7d, '7': 0x07,
+            '8': 0x7f, '9': 0x6f
+        }
+
+        if isinstance(text, list):
+            data = text
+        else:
+            data = [segment_map.get(c, 0x00) for c in str(text)[:4]]
+
+        # Schreibe Segmentdaten
+        self._start()
+        self._write_byte(0x40)  # Datenmodus setzen
+        self._stop()
+
+        self._start()
+        self._write_byte(0xc0)  # Startadresse 0
+        for b in data:
+            self._write_byte(b)
+        self._stop()
+
+        # Display einschalten mit aktueller Helligkeit
+        self._display_on()
