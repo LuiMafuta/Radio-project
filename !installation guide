@@ -130,6 +130,15 @@ sudo systemctl start fm_station_switcher.service
 
 
 
+dann prozesse beenden und script starten und TADA
+
+------------------------------------------------
+sudo pkill -f ffmpeg
+sudo pkill -f fm_station_switcher.py
+python3 /home/pi/fm_station_switcher.py
+------------------------------------------------
+
+
 
 
 
