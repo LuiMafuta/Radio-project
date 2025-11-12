@@ -89,3 +89,5 @@ sudo pkill -f fm_station_switcher.py
 python3 /home/pi/fm_station_switcher.py
 
 dann sollte es wieder gehen
+
+am ende wieder den original inhalt von tm1736 einfügen, sonst klappt es bei autostart nicht
