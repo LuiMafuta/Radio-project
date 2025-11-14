@@ -67,7 +67,7 @@ class TM1637:
         self.show('    ')
 
     def show(self, text):
- """Zeigt Text (max. 4 Zeichen) oder Segment-Liste."""
+ 
         segment_map = {
             ' ': 0x00, '-': 0x40,
             '0': 0x3f, '1': 0x06, '2': 0x5b, '3': 0x4f,
