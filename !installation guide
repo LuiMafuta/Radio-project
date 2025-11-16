@@ -1,3 +1,105 @@
+LED:
+
+350 ohm wiederstand an cathode (kurzes bein) löten
+alles mit schrumpfschlauch abdecken
+
+kabel mit resistor an ground
+kabel ohne resistor an gpio14
+
+
+An/Aus Schalter:
+
+jumper kabel an button (normally open button) löten
+
+kabel mit gpio3 verbinden
+kabel mit ground verbinden
+
+dann die Software auf dem Pi:
+
+------------------------------------------------
+sudo nano /home/pi/gpio3_shutdown.py
+------------------------------------------------
+
+einfügen:
+------------------------------------------------------------------------------------------------------------------------------------------------
+#!/usr/bin/env python3
+import RPi.GPIO as GPIO
+import time
+import subprocess
+import signal
+import sys
+
+# --- Setup ---
+PIN = 3  # GPIO3 / Pin 5
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Pull-Up, Taster gegen GND
+
+def cleanup_and_exit(signum=None, frame=None):
+    GPIO.cleanup()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, cleanup_and_exit)
+signal.signal(signal.SIGTERM, cleanup_and_exit)
+
+print("Shutdown-Watcher läuft. Taster an GPIO3 drückt -> Herunterfahren.")
+
+# --- Hauptloop ---
+try:
+    while True:
+        if GPIO.input(PIN) == 0:  # gedrückt
+            print("Taster gedrückt! Starte Shutdown...")
+            # sauber herunterfahren
+            subprocess.run(["sudo", "shutdown", "now"])
+            time.sleep(1)  # kleines Delay, um wiederholtes Triggern zu vermeiden
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    cleanup_and_exit()
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+ausühbar machen:
+---------------------------------------------
+sudo chown pi:pi /home/pi/gpio3_shutdown.py
+chmod +x /home/pi/gpio3_shutdown.py
+---------------------------------------------
+
+startup erstellen:
+
+---------------------------------------------
+sudo nano /etc/systemd/system/gpio3-shutdown.service
+---------------------------------------------
+
+und inhalt einfpügen:
+------------------------------------------------------------------------------------------------------------------------------------------------
+# /etc/systemd/system/gpio3-shutdown.service
+[Unit]
+Description=GPIO3 Shutdown Watcher
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/gpio3_shutdown.py
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+ausführbar machen:
+
+---------------------------------------------
+chmod +x /home/pi/gpio3_shutdown.py
+
+sudo systemctl daemon-reload
+sudo systemctl enable gpio3-shutdown.service
+sudo systemctl start gpio3-shutdown.service
+---------------------------------------------
+
+Button geht! yey
+
+
+
 Encoder verbinden:
 
 
