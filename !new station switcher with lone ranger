@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+
+import subprocess
+import threading
+import random
+import time
+import signal
+import requests
+from gpiozero import RotaryEncoder
+from signal import pause
+import tm1637
+
+# ----------------------------------------------------
+# 🔊 Normale Radiosender
+# ----------------------------------------------------
+stations = [
+    ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
+    ("WBGO", "https://ais-sa8.cdnstream1.com/3629_128.mp3"),
+    ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
+    ("BBC Radio", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
+    ("TRUE OLDIES", "http://leon.cdnstream.com:5101/toc-128kmp3"),
+    ("X99 Detroit", "https://sonic.radiostream.ca:9458/streams"),
+    ("The Voice of Asheville", "https://stream.wpvmfm.org:8100/wpvm-128k.mp3"),
+    ("Tagesschau", "https://icecast.tagesschau.de/ndr/tagesschau24/live/mp3/128/stream.mp3"),
+    ("181.FM", "https://listen.181fm.com/181-oldschool_128k.mp3"),
+    ("SWR 1 BW", "https://dispatcher.rndfnk.com/swr/swr1/bw/mp3/128/stream.mp3"),
+    ("DUBLAB", "https://dublab.out.airtime.pro/dublab_a"),
+    ("World Wide FM", "https://worldwidefm.out.airtime.pro/worldwidefm_a"),
+    ("Open Lab", "https://ice09.fluidstream.net/openlab.aac"),
+    ("Resonance FM", "https://stream.resonance.fm/resonance"),
+    ("NTS", "https://stream-relay-geo.ntslive.net/stream"),
+    ("Bermuda Funk", "http://streaming.fueralle.org:8000/bermudafunk_high")
+]
+
+# → Sender 16 = Lone Ranger Spezialmodus
+SPECIAL_LONE_RANGER_INDEX = len(stations)
+stations.append(("Lone Ranger (Random)", "SPECIAL_LONE_RANGER"))
+
+# Archive.org Collection
+LONE_RANGER_COLLECTION = "OTRR_LoneRanger_Singles"
+
+# ----------------------------------------------------
+# System Variablen
+# ----------------------------------------------------
+FREQ = "90.3"
+current = 0
+pfm_proc = None
+ffmpeg_proc = None
+lock = threading.Lock()
+stop_special = threading.Event()
+
+# ----------------------------------------------------
+# GPIO (nur Encoder, kein Switch)
+# ----------------------------------------------------
+encoder = RotaryEncoder(a=17, b=27)
+
+# ----------------------------------------------------
+# Display
+# ----------------------------------------------------
+display = tm1637.TM1637(clk=24, dio=23)
+display.clear()
+
+def cleanup_display(*args):
+    display.clear()
+signal.signal(signal.SIGTERM, cleanup_display)
+
+def update_display(index):
+    number = f"{index+1:02}"
+    display.show(f" {number} ")
+
+# ----------------------------------------------------
+# Lone Ranger Episoden laden
+# ----------------------------------------------------
+def get_random_lone_ranger_url():
+    api = f"https://archive.org/metadata/{LONE_RANGER_COLLECTION}"
+
+    try:
+        data = requests.get(api, timeout=6).json()
+    except:
+        print("⚠ Metadaten konnten nicht geladen werden!")
+        return None
+
+    files = data.get("files", [])
+    mp3_files = [f["name"] for f in files if f["name"].endswith(".mp3")]
+
+    if not mp3_files:
+        print("⚠ Keine MP3 Dateien gefunden!")
+        return None
+
+    chosen = random.choice(mp3_files)
+    url = f"https://archive.org/download/{LONE_RANGER_COLLECTION}/{chosen}"
+
+    print(f"🎬 Lone Ranger Episode: {chosen}")
+    return url
+
+# ----------------------------------------------------
+# Spezialmodus: Lone Ranger (mit Puffer + Auto-Next)
+# ----------------------------------------------------
+def play_special_lone_ranger():
+    global pfm_proc, ffmpeg_proc
+
+    stop_special.clear()
+
+    while not stop_special.is_set():
+        episode_url = get_random_lone_ranger_url()
+        if not episode_url:
+            time.sleep(3)
+            continue
+
+        print("▶ Starte Lone Ranger Episode...")
+
+        with lock:
+            # bisherige Prozesse beenden
+            if ffmpeg_proc: ffmpeg_proc.terminate()
+            if pfm_proc: pfm_proc.terminate()
+
+            # PiFmRds starten
+            pfm_proc = subprocess.Popen(
+                ["sudo", "/home/pi/PiFmRds/src/pi_fm_rds", "-freq", FREQ, "-audio", "-"],
+                stdin=subprocess.PIPE
+            )
+
+            # ffmpeg mit großem Puffer
+            ffmpeg_cmd = [
+                "ffmpeg", "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
+                "-i", episode_url,
+                "-bufsize", "30M",
+                "-max_delay", "500000",
+                "-fflags", "+genpts",
+                "-ac", "2", "-ar", "44100",
+                "-f", "wav", "-"
+            ]
+
+            ffmpeg_proc = subprocess.Popen(
+                ffmpeg_cmd,
+                stdout=pfm_proc.stdin
+            )
+
+        ffmpeg_proc.wait()
+
+        if stop_special.is_set():
+            break
+
+        print("🔁 Episode fertig → nächste Episode...")
+
+# ----------------------------------------------------
+# Normalen Radiosender starten
+# ----------------------------------------------------
+def start_normal_station(index):
+    global ffmpeg_proc, pfm_proc
+
+    name, url = stations[index]
+    print(f"📻 Sende jetzt: {name}")
+
+    stop_special.set()
+
+    with lock:
+        if ffmpeg_proc: ffmpeg_proc.terminate()
+        if pfm_proc: pfm_proc.terminate()
+
+        pfm_proc = subprocess.Popen(
+            ["sudo", "/home/pi/PiFmRds/src/pi_fm_rds", "-freq", FREQ, "-audio", "-"],
+            stdin=subprocess.PIPE
+        )
+
+        ffmpeg_cmd = [
+            "ffmpeg", "-re", "-i", url,
+            "-ac", "2", "-ar", "44100",
+            "-f", "wav", "-"
+        ]
+
+        ffmpeg_proc = subprocess.Popen(
+            ffmpeg_cmd,
+            stdout=pfm_proc.stdin
+        )
+
+# ----------------------------------------------------
+# Station abhängig vom Index starten
+# ----------------------------------------------------
+def start_station(index):
+    update_display(index)
+
+    if index == SPECIAL_LONE_RANGER_INDEX:
+        print("⭐ Lone Ranger Spezialmodus")
+        threading.Thread(target=play_special_lone_ranger, daemon=True).start()
+    else:
+        start_normal_station(index)
+
+# ----------------------------------------------------
+# Encoder Dreh-Handler (Bugfix: korrektes Umschalten)
+# ----------------------------------------------------
+def rotate_clockwise():
+    global current
+    with lock:
+        current = (current + 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,), daemon=True).start()
+
+def rotate_counter_clockwise():
+    global current
+    with lock:
+        current = (current - 1) % len(stations)
+        threading.Thread(target=start_station, args=(current,), daemon=True).start()
+
+encoder.when_rotated_clockwise = rotate_clockwise
+encoder.when_rotated_counter_clockwise = rotate_counter_clockwise
+
+# ----------------------------------------------------
+# Start
+# ----------------------------------------------------
+start_station(current)
+pause()
