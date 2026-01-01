@@ -16,6 +16,9 @@ kabel mit ground verbinden
 
 dann die Software auf dem Pi:
 
+raspberry pi os lite 32bit installieren
+
+
 ------------------------------------------------
 sudo nano /home/pi/gpio3_shutdown.py
 ------------------------------------------------
