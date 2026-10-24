@@ -16,7 +16,7 @@ import tm1637
 stations = [
     ("NPR", "https://npr-ice.streamguys1.com/live.mp3"),
     ("WBGO", "https://ais-sa8.cdnstream1.com/3629_128.mp3"),
-    ("BBC Radio", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service"),
+    ("DLF Kultur", "https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3?aggregator=web"),
     ("TRUE OLDIES", "http://leon.cdnstream.com:5101/toc-128kmp3"),
     ("NTS2", "https://audio-edge-5bkfj.fra.h.radiomast.io/nts2"),
     ("DLF", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3?aggregator=web"),
